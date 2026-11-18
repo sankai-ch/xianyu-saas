@@ -1877,6 +1877,7 @@
     "#aiEnabledToggle",
     "#chatAiStart",
     "#chatAiStop",
+    "#cardsPauseButton",
   ];
 
   function setAutomationMutationBusy(kind, busy) {
@@ -4984,6 +4985,11 @@
     $("#chatAiStart").disabled = aiRunning || !connected || !aiEnabled;
     $("#chatAiStop").hidden = !aiRunning;
     $("#chatAiStop").disabled = !aiRunning;
+    const cardsPause = $("#cardsPauseButton");
+    if (cardsPause) {
+      cardsPause.textContent = state.bot?.running ? "暂停自动处理" : "自动处理已暂停";
+      cardsPause.disabled = !state.bot?.running || Boolean(state.automationMutationOwner);
+    }
   }
 
   function productTitle(itemId) {
@@ -9840,8 +9846,8 @@
 
   function confirmStop() {
     const context = captureAccountContext();
-    text("#confirmTitle", "暂停 AI 客服");
-    text("#confirmMessage", "暂停后，AI 客服不会继续回复新的买家消息。");
+    text("#confirmTitle", "暂停店铺自动处理");
+    text("#confirmMessage", "暂停后，该店铺将停止自动回复和自动发货，登录信息保留。可以在暂停后修改卡密库存。");
     text("#confirmAction", "确认暂停");
     state.confirmAction = async () => {
       if (!accountContextMatches(context)) return;
@@ -9852,7 +9858,7 @@
         if (!accountContextMatches(context)) return;
         await refreshState();
         if (!accountContextMatches(context)) return;
-        showToast("AI 客服已暂停");
+        showToast("店铺自动处理已暂停，可以修改卡密库存");
       } finally {
         if (state.automationMutationOwner === mutation) endAutomationMutation(mutation);
       }
@@ -10441,6 +10447,7 @@
       if (deliveryTypeInput) deliveryTypeInput.value = event.currentTarget.value ? "redeem" : "pan";
     });
     $("#importCardsButton").addEventListener("click", () => openCardsEditor());
+    $("#cardsPauseButton").addEventListener("click", confirmStop);
     $("#cardsEmptyAction").addEventListener("click", () => openCardsEditor());
     $("#cardsEditorForm").addEventListener("submit", saveCards);
     $("#cardsCreateForm").addEventListener("submit", createCardPool);

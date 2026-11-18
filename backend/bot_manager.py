@@ -1045,7 +1045,8 @@ def _terminate_process(proc) -> tuple[bool, str]:
             return True, "already_dead"
         signal_sender = getattr(proc, "send_signal", None)
         if signal_sender is not None:
-            if not signal_sender(signal.SIGTERM):
+            # Popen.send_signal returns None on success; adopted handles use bool.
+            if signal_sender(signal.SIGTERM) is False:
                 return False, "stop_failed"
         else:
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
@@ -1055,7 +1056,7 @@ def _terminate_process(proc) -> tuple[bool, str]:
             if not identity_matches():
                 return True, "already_dead"
             if signal_sender is not None:
-                if not signal_sender(signal.SIGKILL):
+                if signal_sender(signal.SIGKILL) is False:
                     return False, "stop_failed"
             else:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)

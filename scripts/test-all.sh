@@ -15,6 +15,7 @@ fi
 
 npm run test:repository
 npm run test:syntax
+python3 tests/worker-stop-regression.py
 npm run test:auth
 npm run test:update
 npm run test:update-copy
