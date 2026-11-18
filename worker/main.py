@@ -2151,7 +2151,13 @@ class XianyuLive:
                 )
                 return "manual_review"
             delivery_payload = None
-            if delivery_type == "pan":
+            if delivery_type == "redeem":
+                # Persist the introduction with the reservation so retries keep
+                # both the original message and the same allocated code.
+                introduction = current.payload or item_config.get("description")
+                if isinstance(introduction, str):
+                    delivery_payload = introduction.strip() or None
+            elif delivery_type == "pan":
                 try:
                     delivery_payload = current.payload or self._pan_payload_for(item_config)
                 except RuntimeError:

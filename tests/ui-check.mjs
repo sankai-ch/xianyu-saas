@@ -6262,7 +6262,8 @@ async function run() {
 
     await page.click("#importCardsButton");
     await page.waitForSelector("#cardsEditorDialog[open]");
-    await page.fill("#cardsPoolNameInput", "默认卡密池");
+    assert.equal(await page.inputValue("#cardsPoolNameInput"), "默认卡密池", "import targets the existing pool");
+    assert.equal(await page.locator("#cardsPoolNameInput").evaluate((field) => field.readOnly), true, "import cannot rename the existing pool");
     await page.fill("#cardsNoteInput", "批量测试备注");
     await page.fill("#cardsCodesInput", "CODE-001\nCODE-002\n  \nCODE-001");
     const importCardsResponse = page.waitForResponse((response) => response.url().endsWith("/api/bot/cards") && response.request().method() === "PUT");
@@ -6290,7 +6291,7 @@ async function run() {
     const createPoolResponse = page.waitForResponse((response) => response.url().endsWith("/api/bot/cards") && response.request().method() === "PUT");
     await page.click("#cardsCreateSubmit");
     await createPoolResponse;
-    assert.ok(fixtures.cardRequests.some((req) => req.name === "新建卡密池" && Array.isArray(req.codes) && req.codes.length === 0), "gemini-style pool creation allows an empty pool");
+    assert.ok(fixtures.cardRequests.some((req) => req.name === "新建卡密池" && Array.isArray(req.codes) && req.codes.length === 0), "pool settings update metadata without replacing inventory");
     await page.waitForFunction(() => document.querySelector("#cardsList .cards-row-name strong")?.textContent === "新建卡密池");
 
     // 店铺管理 is a dedicated workspace. Creation uses a friendly name only,

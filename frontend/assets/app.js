@@ -3168,6 +3168,10 @@
     state.templateEditor = { editingId: "", productIds: [] };
     state.cardsEditor = { editingId: "", mode: "import" };
     const preserveViews = new Set(["shops", "orders", "settings", "ops", "goods", "templates", "cards", "auto-reply", "chat", "ai-config", "common-service"]);
+    ["#cardsCreateName", "#cardsCreateNote"].forEach((selector) => {
+      const field = $(selector);
+      if (field) { field.value = ""; delete field.dataset.poolValue; }
+    });
     const returnView = preserveViews.has(state.view) ? state.view : "home";
     renderAccountSwitcher();
     renderOverview();
@@ -3854,6 +3858,15 @@
 
   function renderCards() {
     const pools = cardsPools();
+    const currentPool = pools[0];
+    if (currentPool) {
+      [["#cardsCreateName", currentPool.name], ["#cardsCreateNote", currentPool.note]].forEach(([selector, value]) => {
+        const field = $(selector);
+        if (!field) return;
+        if (field.dataset.poolValue === undefined || field.value === field.dataset.poolValue) field.value = String(value || "");
+        field.dataset.poolValue = String(value || "");
+      });
+    }
     const stats = state.cards?.stats && typeof state.cards.stats === "object"
       ? state.cards.stats
       : cardsStatsFallback(pools);
@@ -3946,11 +3959,9 @@
       if (!accountContextMatches(context)) return;
       state.cards = result && typeof result === "object" ? result : state.cards;
       state.cardsAccountKey = context.accountKey;
-      $("#cardsCreateName").value = "";
-      $("#cardsCreateNote").value = "";
       formMessage("#cardsCreateMessage", "");
       renderCards();
-      showToast("卡密池已保存");
+      showToast("名称与备注已保存，现有库存保留");
     } catch (error) {
       if (accountContextMatches(context)) formMessage("#cardsCreateMessage", error.message || "卡密池保存失败");
     } finally {
@@ -4124,10 +4135,11 @@
 
   function openCardsEditor(poolId = "", mode = "import") {
     const pools = cardsPools();
-    const pool = poolId ? pools.find((item) => String(item.id ?? item.key ?? "") === String(poolId)) : null;
+    const pool = poolId ? pools.find((item) => String(item.id ?? item.key ?? "") === String(poolId)) : pools[0];
     state.cardsEditor = { editingId: pool ? String(pool.id ?? pool.key ?? "") : "", mode };
-    text("#cardsEditorTitle", pool ? "编辑卡密池" : "导入卡密");
+    text("#cardsEditorTitle", mode === "import" && pool ? "向「" + pool.name + "」补充卡密" : pool ? "编辑卡密池" : "导入卡密");
     $("#cardsPoolNameInput").value = pool?.name || "";
+    $("#cardsPoolNameInput").readOnly = Boolean(pool && mode === "import");
     $("#cardsNoteInput").value = pool?.note || "";
     $("#cardsCodesInput").value = "";
     formMessage("#cardsEditorMessage", "");
@@ -4143,7 +4155,7 @@
       String($("#cardsCodesInput").value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
     ));
     if (!name) return { valid: false, error: "请填写卡密池名称", payload: null };
-    if (!state.cardsEditor?.editingId && !codes.length) return { valid: false, error: "请至少粘贴一个卡密", payload: null };
+    if ((!state.cardsEditor?.editingId || state.cardsEditor?.mode === "import") && !codes.length) return { valid: false, error: "请至少粘贴一个卡密", payload: null };
     return {
       valid: true,
       error: "",
@@ -4987,8 +4999,8 @@
     $("#chatAiStop").disabled = !aiRunning;
     const cardsPause = $("#cardsPauseButton");
     if (cardsPause) {
-      cardsPause.textContent = state.bot?.running ? "暂停自动处理" : "自动处理已暂停";
-      cardsPause.disabled = !state.bot?.running || Boolean(state.automationMutationOwner);
+      cardsPause.textContent = !state.bot ? "正在读取状态" : state.bot.running ? "暂停自动处理" : "恢复自动处理";
+      cardsPause.disabled = !state.bot || Boolean(state.automationMutationOwner);
     }
   }
 
@@ -9844,6 +9856,24 @@
     }
   }
 
+  async function resumeCardProcessing() {
+    const mutation = beginAutomationMutation("runtime");
+    if (!mutation) return;
+    const context = mutation.context;
+    try {
+      await accountScopedApi(context, "/api/bot/start", {
+        method: "POST", body: JSON.stringify({ mode: state.bot?.automation_mode === "rules_ai" ? "rules_ai" : "rules" }),
+      });
+      if (!accountContextMatches(context)) return;
+      await refreshState();
+      if (accountContextMatches(context)) showToast("店铺自动处理已恢复");
+    } catch (error) {
+      if (accountContextMatches(context)) showToast(error.message || "恢复失败，请检查发货配置", "error");
+    } finally {
+      if (state.automationMutationOwner === mutation) endAutomationMutation(mutation);
+    }
+  }
+
   function confirmStop() {
     const context = captureAccountContext();
     text("#confirmTitle", "暂停店铺自动处理");
@@ -10447,7 +10477,7 @@
       if (deliveryTypeInput) deliveryTypeInput.value = event.currentTarget.value ? "redeem" : "pan";
     });
     $("#importCardsButton").addEventListener("click", () => openCardsEditor());
-    $("#cardsPauseButton").addEventListener("click", confirmStop);
+    $("#cardsPauseButton").addEventListener("click", () => state.bot?.running ? confirmStop() : resumeCardProcessing());
     $("#cardsEmptyAction").addEventListener("click", () => openCardsEditor());
     $("#cardsEditorForm").addEventListener("submit", saveCards);
     $("#cardsCreateForm").addEventListener("submit", createCardPool);

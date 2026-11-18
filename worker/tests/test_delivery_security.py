@@ -910,6 +910,21 @@ class AgentTestCase(unittest.IsolatedAsyncioTestCase):
             ]
             self.assertEqual(outcomes, [])
 
+    async def test_redeem_template_message_is_sent_and_persisted(self):
+        intro = "测评入口：https://assessment.example.invalid/\n你的专属兑换码："
+        document = json.loads(self.products_path.read_text(encoding="utf-8"))
+        document["types"][0]["description"] = intro
+        write_json(self.products_path, document)
+        self.bind()
+        event = paid_event(SESSION_ID, int(time.time() * 1000))
+        await self.agent.handle_paid_order(event)
+
+        order = self.agent.delivery_store.get_order(self.agent._canonical_order_key(ORDER_ID))
+        self.assertEqual(order.payload, intro)
+        self.assertEqual(self.agent.send_text_reliably.await_args.args[2], intro + "\n" + order.resources[0])
+        await self.agent.handle_paid_order(event)
+        self.agent.send_text_reliably.assert_awaited_once()
+
     async def test_concurrent_duplicate_event_sends_and_reserves_once(self):
         self.bind()
         event = paid_event(SESSION_ID, int(time.time() * 1000))
